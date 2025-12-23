@@ -94,7 +94,7 @@ async def exchange_public_token(
     """
     logger.info("exchange_public_token called")
 
-    config = Config()
+    config = Config.load()
     plaid_client = PlaidClient(config)
     token_manager = TokenManager(config.data_dir, config.ENCRYPTION_KEY)
 
@@ -136,7 +136,7 @@ async def sync_transactions(
     """
     logger.info(f"sync_transactions called for item_id: {item_id}")
 
-    config = Config()
+    config = Config.load()
     token_manager = TokenManager(config.data_dir, config.ENCRYPTION_KEY)
     storage = FileStorage(config.data_dir)
     plaid_client = PlaidClient(config)
@@ -238,7 +238,7 @@ async def get_balance(
     """
     logger.info(f"get_balance called for item_id: {item_id}")
 
-    config = Config()
+    config = Config.load()
     token_manager = TokenManager(config.data_dir, config.ENCRYPTION_KEY)
     storage = FileStorage(config.data_dir)
     plaid_client = PlaidClient(config)
