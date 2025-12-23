@@ -3,6 +3,7 @@
 from cryptography.fernet import Fernet
 import base64
 import logging
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +16,17 @@ class Encryptor:
         Initialize encryptor with encryption key.
 
         Args:
-            key: 32-byte encryption key (URL-safe base64 encoded)
+            key: At least 32-byte encryption key (will be hashed to create Fernet key)
         """
         if len(key) < 32:
             raise ValueError("Encryption key must be at least 32 bytes")
 
-        # Use key directly (Fernet expects 32 bytes)
+        # Derive a 32-byte Fernet key from the input key
         try:
-            self.fernet = Fernet(key.encode()[:32])
+            key_bytes = key.encode()
+            hash_obj = hashlib.sha256(key_bytes)
+            fernet_key = base64.urlsafe_b64encode(hash_obj.digest())
+            self.fernet = Fernet(fernet_key)
             logger.info("Encryptor initialized")
         except Exception as e:
             logger.error(f"Failed to initialize Fernet: {e}")

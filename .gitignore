@@ -20,6 +20,7 @@ ENV/
 
 # Environment
 .env
+.env.agent
 .env.local
 .env.test
 

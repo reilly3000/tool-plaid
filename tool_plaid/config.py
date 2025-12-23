@@ -9,15 +9,15 @@ from typing import Optional
 @lru_cache
 def get_env(key: str, default: Optional[str] = None) -> str:
     """Get environment variable with optional default."""
-    # First check .env file
-    env_file = Path(__file__).parent / ".env"
+    # First check .env.agent file in project root
+    env_file = Path(__file__).parent.parent / ".env.agent"
     if env_file.exists():
         with open(env_file) as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
-                    key, value = line.split("=", 1)
-                    os.environ[key.strip()] = value.strip()
+                    key_name, value = line.split("=", 1)
+                    os.environ[key_name.strip()] = value.strip()
     
     # Fall back to os.getenv()
     value = os.getenv(key, default)
@@ -76,7 +76,7 @@ class Config:
         return self.PLAID_ENV.lower() == "sandbox"
 
     @property
-    def data_dir(self) -> str:
+    def data_dir(self) -> Path:
         """Get data directory for file storage."""
         from pathlib import Path
         return Path.cwd() / "data"

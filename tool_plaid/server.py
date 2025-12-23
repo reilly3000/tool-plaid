@@ -10,8 +10,8 @@ from tool_plaid.utils.logging import setup_logging
 from tool_plaid.config import Config
 from tool_plaid.tools.transactions import sync_transactions, get_balance
 
-# Load environment variables from .env file
-env_file = Path(__file__).parent / ".env"
+# Load environment variables from .env.agent file
+env_file = Path(__file__).parent.parent / ".env.agent"
 if env_file.exists():
     with open(env_file) as f:
         for line in f:

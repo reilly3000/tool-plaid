@@ -8,6 +8,7 @@ from pathlib import Path
 def test_sdk_initialization():
     """Test that Plaid SDK can be initialized."""
     from plaid.configuration import Configuration
+    from plaid.api_client import ApiClient
     from plaid.api.plaid_api import PlaidApi
     
     config = Configuration(
@@ -18,7 +19,8 @@ def test_sdk_initialization():
         },
     )
     
-    api_client = PlaidApi(configuration=config)
+    api_client_obj = ApiClient(configuration=config)
+    api_client = PlaidApi(api_client=api_client_obj)
     
     assert api_client is not None
     print("✅ Plaid SDK initialized successfully")
@@ -55,7 +57,7 @@ def test_config_loading():
     assert config.PLAID_ENV == "sandbox"
     assert config.PLAID_CLIENT_ID == "62eacf714206f30013d6e722"
     assert config.PLAID_SECRET == "6f85aa5808d484246313470945c515"
-    assert config.ENCRYPTION_KEY == "test_key_32_bytes_long_for_testing_purposes_only"
+    assert len(config.ENCRYPTION_KEY) >= 32
     assert config.STORAGE_MODE == "file"
     assert config.MCP_TRANSPORT == "stdio"
     assert config.BALANCE_CACHE_TTL == 300
@@ -72,8 +74,8 @@ def test_config_loading():
 if __name__ == "__main__":
     import sys
     
-    # Load .env file if exists
-    env_file = Path(__file__).parent / ".env"
+    # Load .env.agent file if exists
+    env_file = Path(__file__).parent.parent / ".env.agent"
     if env_file.exists():
         with open(env_file) as f:
             for line in f:

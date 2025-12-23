@@ -5,6 +5,7 @@ import logging
 from typing import Optional, List
 
 from plaid.configuration import Configuration
+from plaid.api_client import ApiClient
 from plaid.api.plaid_api import PlaidApi
 
 from tool_plaid.config import Config
@@ -35,7 +36,8 @@ class PlaidClient:
         )
         
         # Create API client
-        self.api_client = PlaidApi(configuration=plaid_config)
+        api_client_obj = ApiClient(configuration=plaid_config)
+        self.api_client = PlaidApi(api_client=api_client_obj)
         
         logger.info(f"PlaidClient initialized for {config.PLAID_ENV}")
 

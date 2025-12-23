@@ -9,14 +9,15 @@ import pytest
 @pytest.fixture
 def test_env():
     """Load test environment variables."""
-    env_file = Path(__file__).parent / ".env.test"
+    env_file = Path(__file__).parent.parent / ".env.agent"
     
     # Load env file
-    with open(env_file) as f:
-        for line in f:
-            if line.strip() and not line.startswith("#"):
-                key, value = line.strip().split("=", 1)
-                os.environ[key.strip()] = value.strip()
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                if line.strip() and not line.startswith("#"):
+                    key, value = line.strip().split("=", 1)
+                    os.environ[key.strip()] = value.strip()
     
     return os.environ
 
@@ -31,7 +32,7 @@ def config(test_env):
     assert config.PLAID_ENV == "sandbox"
     assert config.PLAID_CLIENT_ID == "62eacf714206f30013d6e722"
     assert config.PLAID_SECRET == "6f85aa5808d484246313470945c515"
-    assert config.ENCRYPTION_KEY == "test_key_32_bytes_long_for_testing_purposes_only"
+    assert len(config.ENCRYPTION_KEY) >= 32
     assert config.STORAGE_MODE == "file"
     assert config.MCP_TRANSPORT == "stdio"
     assert config.BALANCE_CACHE_TTL == 300
@@ -45,6 +46,7 @@ def config(test_env):
 def test_sdk_initialization(config):
     """Test that Plaid SDK can be initialized."""
     from plaid.configuration import Configuration
+    from plaid.api_client import ApiClient
     from plaid.api.plaid_api import PlaidApi
     
     # Create configuration using keyword arguments
@@ -57,20 +59,21 @@ def test_sdk_initialization(config):
     )
     
     # Create API client
-    api_client = PlaidApi(configuration=plaid_config)
+    api_client_obj = ApiClient(configuration=plaid_config)
+    api_client = PlaidApi(api_client=api_client_obj)
     
     assert api_client is not None
-    assert hasattr(api_client, "configuration")
+    assert hasattr(api_client, "api_client")
     
     print("✓ Plaid SDK initialization successful")
     print(f"  API Client type: {type(api_client)}")
 
 
-def test_encryption():
+def test_encryption(config):
     """Test encryption utilities."""
     from tool_plaid.utils.encryption import Encryptor
     
-    encryptor = Encryptor("test_key_32_bytes_long_for_testing_purposes_only")
+    encryptor = Encryptor(config.ENCRYPTION_KEY)
     
     data = "sensitive_data"
     encrypted = encryptor.encrypt(data)
@@ -88,19 +91,24 @@ if __name__ == "__main__":
     import sys
     
     # Set up test environment
-    env_file = Path(__file__).parent / ".env.test"
+    env_file = Path(__file__).parent.parent / ".env.agent"
     
-    print("Loading test environment from .env.test...")
+    print("Loading test environment from .env.agent...")
     
-    # Run tests
-    os.environ["PLAID_ENV"] = "sandbox"
-    os.environ["PLAID_CLIENT_ID"] = "62eacf714206f30013d6e722"
-    os.environ["PLAID_SECRET"] = "6f85aa5808d484246313470945c515"
-    os.environ["ENCRYPTION_KEY"] = "test_key_32_bytes_long_for_testing_purposes_only"
+    # Load env file
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                if line.strip() and not line.startswith("#"):
+                    key, value = line.strip().split("=", 1)
+                    os.environ[key.strip()] = value.strip()
     
     print("\nRunning tests...\n")
     
-    test_sdk_initialization(None)
-    test_encryption()
+    from tool_plaid.config import Config
+    config = Config.load()
+    
+    test_sdk_initialization(config)
+    test_encryption(config)
     
     print("\n✅ All tests passed!")
