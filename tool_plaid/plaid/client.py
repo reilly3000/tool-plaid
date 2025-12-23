@@ -25,7 +25,7 @@ class PlaidClient:
             config: Application configuration
         """
         self.config = config
-        
+
         # Create Plaid Configuration with api_key parameter
         plaid_config = Configuration(
             host=self._get_host(),
@@ -34,11 +34,11 @@ class PlaidClient:
                 "secret": config.PLAID_SECRET,
             },
         )
-        
+
         # Create API client
         api_client_obj = ApiClient(configuration=plaid_config)
         self.api_client = PlaidApi(api_client=api_client_obj)
-        
+
         logger.info(f"PlaidClient initialized for {config.PLAID_ENV}")
 
     def _get_host(self) -> str:
@@ -47,7 +47,7 @@ class PlaidClient:
             return "https://sandbox.plaid.com"
         return "https://production.plaid.com"
 
-    async def exchange_public_token(self, public_token: str) -> str:
+    async def exchange_public_token(self, public_token: str) -> dict:
         """
         Exchange public token for access token.
 
@@ -55,21 +55,26 @@ class PlaidClient:
             public_token: Public token from Plaid Link
 
         Returns:
-            Access token
+            Dictionary with access_token and item_id
 
         Raises:
             Exception: If exchange fails
         """
         logger.info("Exchanging public token for access token")
-        
+
         try:
             response = await asyncio.to_thread(
                 self.api_client.item_public_token_exchange,
-                {"public_token": public_token}
+                {"public_token": public_token},
             )
-            access_token = response["access_token"]
-            logger.info("Public token exchanged successfully")
-            return access_token
+            result = {
+                "access_token": response["access_token"],
+                "item_id": response["item_id"],
+            }
+            logger.info(
+                f"Public token exchanged successfully, item_id: {result['item_id']}"
+            )
+            return result
         except Exception as e:
             logger.error(f"Failed to exchange public token: {e}")
             raise
@@ -79,7 +84,7 @@ class PlaidClient:
         access_token: str,
         cursor: Optional[str] = None,
         count: int = 500,
-        **kwargs
+        **kwargs,
     ) -> dict:
         """
         Sync transactions using cursor-based approach.
@@ -94,24 +99,23 @@ class PlaidClient:
             Dictionary with added, modified, removed, next_cursor, has_more, item_status
         """
         logger.debug(f"Syncing transactions with cursor: {cursor}")
-        
+
         try:
             # Build request with access_token and cursor
             request = {"access_token": access_token}
             if cursor:
                 request["cursor"] = cursor
-            
+
             # Add additional parameters
             if "count" not in kwargs:
                 request["count"] = count
             else:
                 request.update(kwargs)
-            
+
             response = await asyncio.to_thread(
-                self.api_client.transactions_sync,
-                request
+                self.api_client.transactions_sync, request
             )
-            
+
             # Convert Plaid models to our schema
             added = [
                 Transaction(
@@ -125,7 +129,7 @@ class PlaidClient:
                 )
                 for tx in response.get("added", [])
             ]
-            
+
             modified = [
                 Transaction(
                     transaction_id=tx.transaction_id,
@@ -138,9 +142,9 @@ class PlaidClient:
                 )
                 for tx in response.get("modified", [])
             ]
-            
+
             removed = [tx.transaction_id for tx in response.get("removed", [])]
-            
+
             return {
                 "added": added,
                 "modified": modified,
@@ -154,10 +158,7 @@ class PlaidClient:
             raise
 
     async def get_balance(
-        self,
-        access_token: str,
-        account_ids: Optional[List[str]] = None,
-        **kwargs
+        self, access_token: str, account_ids: Optional[List[str]] = None, **kwargs
     ) -> List[AccountBalance]:
         """
         Get account balances.
@@ -169,33 +170,34 @@ class PlaidClient:
         Returns:
             List of account balances
         """
-        logger.debug(f"Fetching account balances for {len(account_ids) if account_ids else 'all'} accounts")
-        
+        logger.debug(
+            f"Fetching account balances for {len(account_ids) if account_ids else 'all'} accounts"
+        )
+
         try:
             # Build request with access_token
             request = {"access_token": access_token}
-            
+
             # Add account_ids if provided
             if account_ids:
                 request["options"] = {"account_ids": account_ids}
-            
+
             # Add additional parameters
             request.update(kwargs)
-            
+
             response = await asyncio.to_thread(
-                self.api_client.accounts_balance_get,
-                request
+                self.api_client.accounts_balance_get, request
             )
-            
+
             # Convert Plaid models to our schema
             balances = []
             for account in response.get("accounts", []):
                 # Filter by account_ids if provided
                 if account_ids and account["account_id"] not in account_ids:
                     continue
-                
+
                 balance_data = account.get("balances", {})
-                
+
                 balances.append(
                     AccountBalance(
                         account_id=account["account_id"],
@@ -207,7 +209,7 @@ class PlaidClient:
                         iso_currency_code=balance_data.get("iso_currency_code", "USD"),
                     )
                 )
-            
+
             logger.info(f"Retrieved {len(balances)} account balances")
             return balances
         except Exception as e:
@@ -222,16 +224,13 @@ class PlaidClient:
             access_token: Plaid access token
         """
         logger.info("Triggering transaction refresh")
-        
+
         try:
             request = {"access_token": access_token}
             request.update(kwargs)
-            
-            await asyncio.to_thread(
-                self.api_client.transactions_refresh,
-                request
-            )
-            
+
+            await asyncio.to_thread(self.api_client.transactions_refresh, request)
+
             logger.info("Transaction refresh triggered successfully")
         except Exception as e:
             logger.error(f"Failed to refresh transactions: {e}")

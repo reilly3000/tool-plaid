@@ -18,13 +18,17 @@ logger = logging.getLogger(__name__)
 
 class SyncTransactionsInput(BaseModel):
     """Input for sync_transactions tool."""
+
     item_id: str = Field(description="Plaid item identifier")
     force_refresh: bool = Field(default=False, description="Trigger Plaid refresh")
-    days_requested: Optional[int] = Field(default=90, ge=1, le=730, description="Days of history")
+    days_requested: Optional[int] = Field(
+        default=90, ge=1, le=730, description="Days of history"
+    )
 
 
 class SyncTransactionsResponse(BaseModel):
     """Response for sync_transactions tool."""
+
     added: List[Transaction] = Field(default_factory=list)
     modified: List[Transaction] = Field(default_factory=list)
     removed: List[str] = Field(default_factory=list, description="Transaction IDs")
@@ -36,16 +40,82 @@ class SyncTransactionsResponse(BaseModel):
 
 class GetBalanceInput(BaseModel):
     """Input for get_balance tool."""
+
     item_id: str = Field(description="Plaid item identifier")
-    account_ids: Optional[List[str]] = Field(default=None, description="Filter accounts")
+    account_ids: Optional[List[str]] = Field(
+        default=None, description="Filter accounts"
+    )
     force_refresh: bool = Field(default=False, description="Bypass cache")
+
+
+class ExchangeTokenInput(BaseModel):
+    """Input for exchange_public_token tool."""
+
+    public_token: str = Field(
+        description="Public token from Plaid Link onSuccess callback (expires in 30 min)"
+    )
+    institution_name: Optional[str] = Field(
+        default=None, description="Name of the linked financial institution"
+    )
 
 
 class GetBalanceResponse(BaseModel):
     """Response for get_balance tool."""
+
     balances: List[AccountBalance] = Field(default_factory=list)
     cached: bool = Field(default=False)
     timestamp: str = Field(default="")
+
+
+class ExchangeTokenResponse(BaseModel):
+    """Response for exchange_public_token tool."""
+
+    item_id: str = Field(description="Plaid item identifier for future API calls")
+    success: bool = Field(default=True)
+    error: Optional[str] = Field(default=None)
+
+
+async def exchange_public_token(
+    public_token: str,
+    institution_name: Optional[str] = None,
+) -> ExchangeTokenResponse:
+    """
+    Exchange a Plaid Link public_token for an access_token and store it securely.
+
+    Call this after Plaid Link completes successfully. The public_token expires
+    in 30 minutes, so exchange it promptly.
+
+    Args:
+        public_token: The public_token from Plaid Link's onSuccess callback
+        institution_name: Optional name of the linked institution for metadata
+
+    Returns:
+        ExchangeTokenResponse with item_id for future API calls
+    """
+    logger.info("exchange_public_token called")
+
+    config = Config()
+    plaid_client = PlaidClient(config)
+    token_manager = TokenManager(config.data_dir, config.ENCRYPTION_KEY)
+
+    try:
+        result = await plaid_client.exchange_public_token(public_token)
+        access_token = result["access_token"]
+        item_id = result["item_id"]
+
+        metadata = {"institution": institution_name or "Unknown"}
+        await token_manager.store_token(
+            access_token=access_token,
+            item_id=item_id,
+            metadata=metadata,
+        )
+
+        logger.info(f"Token exchanged and stored for item_id: {item_id}")
+        return ExchangeTokenResponse(item_id=item_id, success=True)
+
+    except Exception as e:
+        logger.error(f"Failed to exchange public token: {e}")
+        return ExchangeTokenResponse(item_id="", success=False, error=str(e))
 
 
 async def sync_transactions(

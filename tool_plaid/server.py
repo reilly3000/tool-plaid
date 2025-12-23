@@ -8,7 +8,11 @@ from mcp.server.fastmcp import FastMCP
 
 from tool_plaid.utils.logging import setup_logging
 from tool_plaid.config import Config
-from tool_plaid.tools.transactions import sync_transactions, get_balance
+from tool_plaid.tools.transactions import (
+    sync_transactions,
+    get_balance,
+    exchange_public_token,
+)
 
 # Load environment variables from .env.agent file
 env_file = Path(__file__).parent.parent / ".env.agent"
@@ -26,9 +30,12 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 # Create MCP server
-mcp = FastMCP("Plaid Tool", instructions="Sync transactions and get account balances from Plaid")
+mcp = FastMCP(
+    "Plaid Tool", instructions="Sync transactions and get account balances from Plaid"
+)
 
 # Register tools
+mcp.tool()(exchange_public_token)
 mcp.tool()(sync_transactions)
 mcp.tool()(get_balance)
 
