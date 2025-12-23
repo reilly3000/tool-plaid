@@ -11,6 +11,13 @@ from plaid.model.accounts import AccountsBalanceGetResponse
 from tool_plaid.config import Config
 from tool_plaid.plaid.models import Transaction, AccountBalance
 
+# Import compatibility for older plaid-python versions
+try:
+    from plaid.model.transactions import TransactionsSyncResponse as PlaidTransactionsSyncResponseV18
+    PlaidTransactionsSyncResponse = PlaidTransactionsSyncResponseV18
+except ImportError:
+    pass  # Use default import
+
 logger = logging.getLogger(__name__)
 
 

@@ -1,5 +1,4 @@
-"""tool-plaid: MCP Server for Plaid financial data"""
+"""tool-plaid: MCP Server for Plaid"""
 
-from tool_plaid import __version__
-
-__all__ = ["__version__"]
+__version__ = "0.1.0"
+__all__ = []

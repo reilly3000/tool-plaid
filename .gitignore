@@ -46,3 +46,4 @@ plaid_mcp.log
 # OS
 .DS_Store
 Thumbs.db
+.env
