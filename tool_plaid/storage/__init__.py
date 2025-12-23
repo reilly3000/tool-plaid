@@ -2,4 +2,4 @@
 
 from tool_plaid.storage.base import StorageBackend
 
-__all__ = ["StorageBackend", "FileStorage"]
+__all__ = ["StorageBackend"]

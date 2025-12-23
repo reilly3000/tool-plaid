@@ -2,12 +2,7 @@
 
 import os
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional
-
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 @lru_cache
@@ -69,8 +64,9 @@ class Config:
         return self.PLAID_ENV.lower() == "sandbox"
 
     @property
-    def data_dir(self) -> Path:
+    def data_dir(self) -> str:
         """Get data directory for file storage."""
+        from pathlib import Path
         return Path.cwd() / "data"
 
     def validate(self) -> None:

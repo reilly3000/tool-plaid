@@ -1,9 +1,6 @@
 """Encryption utilities for token storage"""
 
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
 import base64
 import logging
 
@@ -23,21 +20,13 @@ class Encryptor:
         if len(key) < 32:
             raise ValueError("Encryption key must be at least 32 bytes")
 
-        # Ensure key is 32 bytes (Fernet requirement)
-        key_bytes = key.encode()[:32].ljust(32, b'\0')
-
-        # Derive Fernet-compatible key
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=b'tool-plaid-salt',
-            iterations=100000,
-            backend=default_backend(),
-        )
-        derived_key = kdf.derive(key_bytes)
-        self.fernet = Fernet(base64.urlsafe_b64encode(derived_key))
-
-        logger.info("Encryptor initialized")
+        # Use key directly (Fernet expects 32 bytes)
+        try:
+            self.fernet = Fernet(key.encode()[:32])
+            logger.info("Encryptor initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize Fernet: {e}")
+            raise
 
     def encrypt(self, data: str) -> str:
         """
