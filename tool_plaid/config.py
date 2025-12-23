@@ -1,0 +1,85 @@
+"""Configuration management for tool-plaid"""
+
+import os
+from functools import lru_cache
+from pathlib import Path
+from typing import Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+@lru_cache
+def get_env(key: str, default: Optional[str] = None) -> str:
+    """Get environment variable with optional default."""
+    value = os.getenv(key, default)
+    if value is None:
+        raise ValueError(f"Environment variable {key} is required but not set")
+    return value
+
+
+def get_env_int(key: str, default: int = 0) -> int:
+    """Get environment variable as integer."""
+    value = os.getenv(key)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"Environment variable {key} must be an integer, got: {value}")
+
+
+class Config:
+    """Application configuration from environment variables."""
+
+    PLAID_ENV: str = "sandbox"
+    PLAID_CLIENT_ID: str = ""
+    PLAID_SECRET: str = ""
+    ENCRYPTION_KEY: str = ""
+    STORAGE_MODE: str = "file"
+    DATABASE_URL: Optional[str] = None
+    MCP_TRANSPORT: str = "stdio"
+    MCP_PORT: int = 8000
+    BALANCE_CACHE_TTL: int = 300  # 5 minutes in seconds
+
+    @classmethod
+    def load(cls) -> "Config":
+        """Load configuration from environment variables."""
+        config = cls()
+
+        config.PLAID_ENV = get_env("PLAID_ENV", "sandbox")
+        config.PLAID_CLIENT_ID = get_env("PLAID_CLIENT_ID")
+        config.PLAID_SECRET = get_env("PLAID_SECRET")
+        config.ENCRYPTION_KEY = get_env("ENCRYPTION_KEY")
+
+        config.STORAGE_MODE = get_env("STORAGE_MODE", "file")
+        if config.STORAGE_MODE == "postgres":
+            config.DATABASE_URL = get_env("DATABASE_URL")
+
+        config.MCP_TRANSPORT = get_env("MCP_TRANSPORT", "stdio")
+        config.MCP_PORT = get_env_int("MCP_PORT", 8000)
+        config.BALANCE_CACHE_TTL = get_env_int("BALANCE_CACHE_TTL", 300)
+
+        return config
+
+    @property
+    def is_sandbox(self) -> bool:
+        """Check if running in Sandbox environment."""
+        return self.PLAID_ENV.lower() == "sandbox"
+
+    @property
+    def data_dir(self) -> Path:
+        """Get data directory for file storage."""
+        return Path.cwd() / "data"
+
+    def validate(self) -> None:
+        """Validate configuration."""
+        if len(self.ENCRYPTION_KEY) < 32:
+            raise ValueError("ENCRYPTION_KEY must be at least 32 bytes")
+
+        if self.STORAGE_MODE not in ("file", "postgres"):
+            raise ValueError("STORAGE_MODE must be 'file' or 'postgres'")
+
+        if self.MCP_TRANSPORT not in ("stdio", "streamable-http"):
+            raise ValueError("MCP_TRANSPORT must be 'stdio' or 'streamable-http'")
