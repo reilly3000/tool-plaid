@@ -2,12 +2,24 @@
 
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 
 @lru_cache
 def get_env(key: str, default: Optional[str] = None) -> str:
     """Get environment variable with optional default."""
+    # First check .env file
+    env_file = Path(__file__).parent / ".env"
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ[key.strip()] = value.strip()
+    
+    # Fall back to os.getenv()
     value = os.getenv(key, default)
     if value is None:
         raise ValueError(f"Environment variable {key} is required but not set")

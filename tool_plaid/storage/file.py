@@ -1,4 +1,4 @@
-"""File-based storage backend for development"""
+"""File storage backend for tool-plaid"""
 
 import json
 import logging
@@ -58,6 +58,7 @@ class FileStorage(StorageBackend):
         if transactions_file.exists():
             existing = json.loads(transactions_file.read_text())
 
+        # Convert dataclass to dict
         new_txs = [tx.__dict__ for tx in transactions]
         existing.extend(new_txs)
 
@@ -73,6 +74,8 @@ class FileStorage(StorageBackend):
             return
 
         existing = json.loads(transactions_file.read_text())
+        
+        # Find and update the transaction
         updated = [
             tx if tx.get("transaction_id") != transaction.transaction_id
             else transaction.__dict__
@@ -92,6 +95,7 @@ class FileStorage(StorageBackend):
 
         existing = json.loads(transactions_file.read_text())
         to_remove = set(transaction_ids)
+        
         filtered = [tx for tx in existing if tx.get("transaction_id") not in to_remove]
 
         transactions_file.write_text(json.dumps(filtered, indent=2))
@@ -109,12 +113,14 @@ class FileStorage(StorageBackend):
         return [Transaction(**tx) for tx in existing]
 
     async def set_balance(self, item_id: str, balance: AccountBalance) -> None:
-        """Store account balance."""
+        """Store account balance with timestamp."""
         item_dir = self._get_item_dir(item_id)
         balance_file = item_dir / "balance.json"
 
+        # Convert to dict and add timestamp
         balance_data = balance.__dict__
         balance_data["timestamp"] = datetime.utcnow().isoformat()
+        
         balance_file.write_text(json.dumps(balance_data, indent=2))
         logger.debug(f"Stored balance for {item_id}")
 
@@ -126,16 +132,15 @@ class FileStorage(StorageBackend):
         if not balance_file.exists():
             return None
 
-        balance_data = json.loads(balance_file.read_text())
-
+        from tool_plaid.config import Config
+        config = Config()
+        
         # Check cache TTL
+        balance_data = json.loads(balance_file.read_text())
         stored_timestamp = datetime.fromisoformat(balance_data["timestamp"])
         age = datetime.utcnow() - stored_timestamp
 
-        from tool_plaid.config import Config
-        ttl = Config().BALANCE_CACHE_TTL
-
-        if age.total_seconds() > ttl:
+        if age.total_seconds() > config.BALANCE_CACHE_TTL:
             logger.debug(f"Balance cache expired for {item_id}")
             return None
 

@@ -1,4 +1,4 @@
-"""Storage abstraction layer for tool-plaid"""
+"""Storage base interface for tool-plaid"""
 
 from abc import ABC, abstractmethod
 from typing import List, Optional
@@ -27,7 +27,6 @@ class AccountBalance:
     available: Optional[float]
     current: Optional[float]
     iso_currency_code: str
-    timestamp: str
 
 
 class StorageBackend(ABC):

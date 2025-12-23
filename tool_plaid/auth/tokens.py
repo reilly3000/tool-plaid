@@ -1,9 +1,9 @@
-"""Authentication and token management"""
+"""Token management for tool-plaid"""
 
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from dataclasses import dataclass
 
 from tool_plaid.utils.encryption import Encryptor
@@ -40,6 +40,10 @@ class TokenManager:
         """Get token file path for an item."""
         return self.data_dir / "items" / item_id / "token.json"
 
+    def _get_index_file(self) -> Path:
+        """Get index file path."""
+        return self.data_dir / "item_index.json"
+
     async def store_token(
         self,
         access_token: str,
@@ -71,13 +75,13 @@ class TokenManager:
         token_file = self._get_token_file(item_id)
         token_file.write_text(encrypted)
 
-        # Also maintain item_id -> access_token mapping for quick lookup
-        index_file = self.data_dir / "item_index.json"
+        # Update index
+        index_file = self._get_index_file()
         index = {}
         if index_file.exists():
             index = json.loads(index_file.read_text())
-        index[item_id] = token_file.parent
-
+        
+        index[item_id] = item_dir.as_posix()
         index_file.write_text(json.dumps(index, indent=2))
 
         logger.info(f"Stored token for item_id: {item_id}")
@@ -102,7 +106,7 @@ class TokenManager:
             encrypted = token_file.read_text()
             decrypted = self.encryptor.decrypt(encrypted)
             token_data = json.loads(decrypted)
-            return token_data.get("access_token")
+            return token_data["access_token"]
         except Exception as e:
             logger.error(f"Failed to decrypt token for {item_id}: {e}")
             return None
@@ -120,7 +124,7 @@ class TokenManager:
             token_file.unlink()
 
         # Update index
-        index_file = self.data_dir / "item_index.json"
+        index_file = self._get_index_file()
         if index_file.exists():
             index = json.loads(index_file.read_text())
             if item_id in index:
@@ -130,8 +134,8 @@ class TokenManager:
         logger.info(f"Removed token for item_id: {item_id}")
 
     async def list_items(self) -> List[str]:
-        """List all stored item_ids."""
-        index_file = self.data_dir / "item_index.json"
+        """List all stored item IDs."""
+        index_file = self._get_index_file()
 
         if not index_file.exists():
             return []

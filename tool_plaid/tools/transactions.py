@@ -2,14 +2,16 @@
 
 import logging
 from typing import List, Optional
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from tool_plaid.config import Config
 from tool_plaid.plaid.client import PlaidClient
 from tool_plaid.plaid.models import Transaction, AccountBalance
-from tool_plaid.auth.tokens import TokenManager
+from tool_plaid.storage.base import StorageBackend
 from tool_plaid.storage.file import FileStorage
+from tool_plaid.auth.tokens import TokenManager
+from tool_plaid.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ class SyncTransactionsResponse(BaseModel):
     added: List[Transaction] = Field(default_factory=list)
     modified: List[Transaction] = Field(default_factory=list)
     removed: List[str] = Field(default_factory=list, description="Transaction IDs")
-    next_cursor: str = Field(default="", description="Cursor for next sync")
+    next_cursor: str = Field(default="")
     has_more: bool = Field(default=False)
     item_status: str = Field(default="")
     summary: str = Field(default="")
@@ -46,7 +48,11 @@ class GetBalanceResponse(BaseModel):
     timestamp: str = Field(default="")
 
 
-async def sync_transactions(item_id: str, force_refresh: bool = False, days_requested: Optional[int] = 90) -> SyncTransactionsResponse:
+async def sync_transactions(
+    item_id: str,
+    force_refresh: bool = False,
+    days_requested: Optional[int] = 90,
+) -> SyncTransactionsResponse:
     """
     Sync transactions from Plaid using cursor-based incremental updates.
 
@@ -60,7 +66,7 @@ async def sync_transactions(item_id: str, force_refresh: bool = False, days_requ
     """
     logger.info(f"sync_transactions called for item_id: {item_id}")
 
-    config = Config.load()
+    config = Config()
     token_manager = TokenManager(config.data_dir, config.ENCRYPTION_KEY)
     storage = FileStorage(config.data_dir)
     plaid_client = PlaidClient(config)
@@ -70,7 +76,7 @@ async def sync_transactions(item_id: str, force_refresh: bool = False, days_requ
     if not access_token:
         return SyncTransactionsResponse(
             item_status="ITEM_NOT_FOUND",
-            summary=f"Item {item_id} not found or not linked"
+            summary=f"Item {item_id} not found or not linked",
         )
 
     # Trigger refresh if requested
@@ -85,11 +91,26 @@ async def sync_transactions(item_id: str, force_refresh: bool = False, days_requ
     cursor = await storage.get_cursor(item_id)
 
     # Sync transactions
-    result = await plaid_client.sync_transactions(
-        access_token=access_token,
-        cursor=cursor,
-        count=500,
-    )
+    try:
+        if days_requested:
+            result = await plaid_client.sync_transactions(
+                access_token=access_token,
+                cursor=cursor,
+                count=500,
+                days_requested=days_requested,
+            )
+        else:
+            result = await plaid_client.sync_transactions(
+                access_token=access_token,
+                cursor=cursor,
+                count=500,
+            )
+    except Exception as e:
+        logger.error(f"Failed to sync transactions: {e}")
+        return SyncTransactionsResponse(
+            item_status="ERROR",
+            summary=f"Failed to sync: {str(e)}",
+        )
 
     # Store updated cursor
     await storage.set_cursor(item_id, result["next_cursor"])
@@ -105,6 +126,7 @@ async def sync_transactions(item_id: str, force_refresh: bool = False, days_requ
     if result["removed"]:
         await storage.remove_transactions(item_id, result["removed"])
 
+    # Build summary
     summary_parts = []
     if result["added"]:
         summary_parts.append(f"Added {len(result['added'])}")
@@ -128,7 +150,11 @@ async def sync_transactions(item_id: str, force_refresh: bool = False, days_requ
     )
 
 
-async def get_balance(item_id: str, account_ids: Optional[List[str]] = None, force_refresh: bool = False) -> GetBalanceResponse:
+async def get_balance(
+    item_id: str,
+    account_ids: Optional[List[str]] = None,
+    force_refresh: bool = False,
+) -> GetBalanceResponse:
     """
     Get account balances with intelligent caching.
 
@@ -142,8 +168,7 @@ async def get_balance(item_id: str, account_ids: Optional[List[str]] = None, for
     """
     logger.info(f"get_balance called for item_id: {item_id}")
 
-    from datetime import datetime
-    config = Config.load()
+    config = Config()
     token_manager = TokenManager(config.data_dir, config.ENCRYPTION_KEY)
     storage = FileStorage(config.data_dir)
     plaid_client = PlaidClient(config)
@@ -168,7 +193,17 @@ async def get_balance(item_id: str, account_ids: Optional[List[str]] = None, for
             )
 
     # Fetch from Plaid
-    balances = await plaid_client.get_balance(access_token, account_ids)
+    try:
+        balances = await plaid_client.get_balance(
+            access_token=access_token,
+            account_ids=account_ids,
+        )
+    except Exception as e:
+        logger.error(f"Failed to get balance: {e}")
+        return GetBalanceResponse(
+            cached=False,
+            timestamp=datetime.utcnow().isoformat(),
+        )
 
     # Store in cache
     if balances:
