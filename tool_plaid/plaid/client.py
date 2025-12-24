@@ -202,8 +202,10 @@ class PlaidClient:
                     AccountBalance(
                         account_id=account["account_id"],
                         name=account["name"],
-                        mask=account["mask"],
-                        type=account["type"],
+                        mask=account.get("mask") or "",
+                        type=str(account["type"].value)
+                        if hasattr(account["type"], "value")
+                        else str(account["type"]),
                         available=balance_data.get("available"),
                         current=balance_data.get("current"),
                         iso_currency_code=balance_data.get("iso_currency_code", "USD"),
