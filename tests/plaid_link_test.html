@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaid Link - Test for tool-plaid</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background: #f5f5f5;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a1a1a;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+            display: none;
+        }
+        button {
+            background: #1a1a1a;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #333;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .token-output {
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 20px;
+            word-break: break-all;
+            font-family: monospace;
+            display: none;
+        }
+        .env-command {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Plaid Link Test</h1>
+        <p class="subtitle">Test the tool-plaid MCP end-to-end flow</p>
+
+        <div class="info-box">
+            <strong>🧪 This is for SANDBOX testing only</strong><br><br>
+            • Use Plaid's test credentials: <code>user_good</code> / <code>pass_good</code><br>
+            • Select "Chase" as the test bank<br>
+            • This will generate a <code>public_token</code> for testing
+        </div>
+
+        <button id="link-button" onclick="openLink()">Open Plaid Link</button>
+
+        <div id="success" class="success-box">
+            <strong>✅ Success!</strong><br>
+            Public token received. Copy it below to run the end-to-end test.
+        </div>
+
+        <div id="token-output" class="token-output">
+            <strong>Public Token:</strong><br>
+            <code id="public-token"></code><br><br>
+            <button onclick="copyToken()" style="margin-top:10px; font-size:14px; padding:8px 16px;">📋 Copy to Clipboard</button>
+        </div>
+
+        <div id="env-command" class="env-command" style="display:none;">
+            <strong>🚀 Run End-to-End Test:</strong><br><br>
+            <code>cd /var/home/chris/github.com/reilly3000/tool-plaid<br>
+            python tests/test_e2e.py <span id="token-in-command">PUBLIC_TOKEN</span></code>
+        </div>
+    </div>
+
+    <script>
+        // Plaid Sandbox credentials (from .env.agent)
+        // In production, these would come from your backend
+        const PLAID_ENV = 'sandbox';
+        const PLAID_CLIENT_ID = '62eacf714206f30013d6e722';
+
+        let handler = null;
+        let publicKey = null;
+
+        // Fetch public key from Plaid
+        async function fetchPublicKey() {
+            try {
+                const response = await fetch(`https://${PLAID_ENV}.plaid.com/sandbox/public_key/get/${PLAID_CLIENT_ID}`);
+                const data = await response.json();
+                publicKey = data.public_key;
+                console.log('Public key fetched:', publicKey);
+                initializeLink();
+            } catch (error) {
+                console.error('Error fetching public key:', error);
+                alert('Error fetching Plaid public key. Check console for details.');
+            }
+        }
+
+        function initializeLink() {
+            const linkHandler = Plaid.create({
+                token: publicKey,
+                env: PLAID_ENV,
+                product: ['transactions', 'auth'],
+                countryCodes: ['US'],
+                language: 'en',
+                onSuccess: function(public_token, metadata) {
+                    console.log('Plaid Link success!');
+                    console.log('Public token:', public_token);
+                    console.log('Metadata:', metadata);
+
+                    // Display the public token
+                    document.getElementById('public-token').textContent = public_token;
+                    document.getElementById('token-output').style.display = 'block';
+                    document.getElementById('success').style.display = 'block';
+                    document.getElementById('env-command').style.display = 'block';
+                    document.getElementById('token-in-command').textContent = public_token;
+                    document.getElementById('link-button').textContent = 'Test Complete!';
+                    document.getElementById('link-button').disabled = true;
+
+                    // Log for user
+                    console.log('\n✅ Public token received!');
+                    console.log('Copy it and run:');
+                    console.log(`python tests/test_e2e.py ${public_token}`);
+                },
+                onExit: function(err, metadata) {
+                    if (err != null) {
+                        console.error('Plaid Link error:', err);
+                        console.error('Metadata:', metadata);
+                        alert('Plaid Link exited with error: ' + err);
+                    }
+                },
+            });
+
+            handler = linkHandler;
+        }
+
+        function openLink() {
+            if (handler) {
+                handler.open();
+            } else {
+                alert('Plaid Link not initialized yet. Please wait...');
+            }
+        }
+
+        function copyToken() {
+            const token = document.getElementById('public-token').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                alert('✅ Public token copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // Initialize on page load
+        fetchPublicKey();
+    </script>
+</body>
+</html>

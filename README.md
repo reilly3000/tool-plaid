@@ -32,7 +32,7 @@ uv pip install tool-plaid
 
 ### Environment Variables
 
-Create a `.env` file in the project root or set environment variables:
+Create a `.env.agent` file in the project root (ignored by git) or set environment variables:
 
 ```bash
 # Plaid Configuration
@@ -209,17 +209,32 @@ Get account balances with intelligent caching.
 ### Running Tests
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# Unit tests
+pytest tests/ -v
 
-# Run tests
-pytest
-
-# Run with coverage
+# With coverage
 pytest --cov=tool_plaid --cov-report=html
+```
 
-# Run integration tests (requires Sandbox credentials)
-pytest tests/integration/ -m integration
+### End-to-End Testing (Sandbox)
+
+1. Open `tests/plaid_link_test.html` in a browser
+2. Link a test bank using credentials: `user_good` / `pass_good`
+3. Copy the public token and run:
+```bash
+python tests/test_e2e.py <PUBLIC_TOKEN>
+```
+
+Note: Public tokens expire after ~30 minutes.
+
+### Quick Verification
+
+```bash
+# Check config loads
+python -c "from tool_plaid.config import Config; c = Config.load(); print(c.PLAID_CLIENT_ID)"
+
+# Test encryption
+python -c "from tool_plaid.utils.encryption import Encryptor; from tool_plaid.config import Config; e = Encryptor(Config.load().ENCRYPTION_KEY); print(e.decrypt(e.encrypt('test')))"
 ```
 
 ### Code Quality
