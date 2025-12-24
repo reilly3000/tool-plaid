@@ -2,31 +2,8 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from dataclasses import dataclass
 
-
-@dataclass
-class Transaction:
-    """Transaction data model."""
-    transaction_id: str
-    account_id: str
-    amount: float
-    date: str
-    merchant_name: Optional[str]
-    category: Optional[str]
-    pending: bool
-
-
-@dataclass
-class AccountBalance:
-    """Account balance data model."""
-    account_id: str
-    name: str
-    mask: str
-    type: str
-    available: Optional[float]
-    current: Optional[float]
-    iso_currency_code: str
+from tool_plaid.plaid.models import Transaction, AccountBalance
 
 
 class StorageBackend(ABC):
@@ -43,7 +20,9 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def add_transactions(self, item_id: str, transactions: List[Transaction]) -> None:
+    async def add_transactions(
+        self, item_id: str, transactions: List[Transaction]
+    ) -> None:
         """Add new transactions for an item."""
         pass
 
@@ -53,7 +32,9 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def remove_transactions(self, item_id: str, transaction_ids: List[str]) -> None:
+    async def remove_transactions(
+        self, item_id: str, transaction_ids: List[str]
+    ) -> None:
         """Remove transactions by IDs."""
         pass
 
@@ -68,6 +49,8 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def get_balance(self, item_id: str, account_ids: Optional[List[str]] = None) -> Optional[AccountBalance]:
+    async def get_balance(
+        self, item_id: str, account_ids: Optional[List[str]] = None
+    ) -> Optional[AccountBalance]:
         """Get stored balance for an item."""
         pass

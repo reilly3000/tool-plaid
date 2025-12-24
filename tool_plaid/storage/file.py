@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
-from tool_plaid.storage.base import StorageBackend, Transaction, AccountBalance
+from tool_plaid.storage.base import StorageBackend
+from tool_plaid.plaid.models import Transaction, AccountBalance
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,9 @@ class FileStorage(StorageBackend):
         cursor_file.write_text(cursor)
         logger.debug(f"Stored cursor for {item_id}")
 
-    async def add_transactions(self, item_id: str, transactions: List[Transaction]) -> None:
+    async def add_transactions(
+        self, item_id: str, transactions: List[Transaction]
+    ) -> None:
         """Add new transactions for an item."""
         item_dir = self._get_item_dir(item_id)
         transactions_file = item_dir / "transactions.json"
@@ -58,8 +61,7 @@ class FileStorage(StorageBackend):
         if transactions_file.exists():
             existing = json.loads(transactions_file.read_text())
 
-        # Convert dataclass to dict
-        new_txs = [tx.__dict__ for tx in transactions]
+        new_txs = [tx.model_dump() for tx in transactions]
         existing.extend(new_txs)
 
         transactions_file.write_text(json.dumps(existing, indent=2))
@@ -74,18 +76,21 @@ class FileStorage(StorageBackend):
             return
 
         existing = json.loads(transactions_file.read_text())
-        
+
         # Find and update the transaction
         updated = [
-            tx if tx.get("transaction_id") != transaction.transaction_id
-            else transaction.__dict__
+            tx
+            if tx.get("transaction_id") != transaction.transaction_id
+            else transaction.model_dump()
             for tx in existing
         ]
 
         transactions_file.write_text(json.dumps(updated, indent=2))
         logger.debug(f"Updated transaction {transaction.transaction_id} for {item_id}")
 
-    async def remove_transactions(self, item_id: str, transaction_ids: List[str]) -> None:
+    async def remove_transactions(
+        self, item_id: str, transaction_ids: List[str]
+    ) -> None:
         """Remove transactions by IDs."""
         item_dir = self._get_item_dir(item_id)
         transactions_file = item_dir / "transactions.json"
@@ -95,7 +100,7 @@ class FileStorage(StorageBackend):
 
         existing = json.loads(transactions_file.read_text())
         to_remove = set(transaction_ids)
-        
+
         filtered = [tx for tx in existing if tx.get("transaction_id") not in to_remove]
 
         transactions_file.write_text(json.dumps(filtered, indent=2))
@@ -117,14 +122,15 @@ class FileStorage(StorageBackend):
         item_dir = self._get_item_dir(item_id)
         balance_file = item_dir / "balance.json"
 
-        # Convert to dict and add timestamp
-        balance_data = balance.__dict__
+        balance_data = balance.model_dump()
         balance_data["timestamp"] = datetime.utcnow().isoformat()
-        
+
         balance_file.write_text(json.dumps(balance_data, indent=2))
         logger.debug(f"Stored balance for {item_id}")
 
-    async def get_balance(self, item_id: str, account_ids: Optional[List[str]] = None) -> Optional[AccountBalance]:
+    async def get_balance(
+        self, item_id: str, account_ids: Optional[List[str]] = None
+    ) -> Optional[AccountBalance]:
         """Get stored balance for an item."""
         item_dir = self._get_item_dir(item_id)
         balance_file = item_dir / "balance.json"
@@ -133,8 +139,9 @@ class FileStorage(StorageBackend):
             return None
 
         from tool_plaid.config import Config
-        config = Config()
-        
+
+        config = Config.load()
+
         # Check cache TTL
         balance_data = json.loads(balance_file.read_text())
         stored_timestamp = datetime.fromisoformat(balance_data["timestamp"])
